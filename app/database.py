@@ -2,10 +2,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
+from .config import settings
 
-password = quote_plus('Vivasva@20')
+password = quote_plus(f'{settings.database_password}')
 
-SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://root:{password}@localhost:3306/fastapi"
+SQLALCHEMY_DATABASE_URL = f"{settings.database_type}://{settings.database_username}:{password}@{settings.database_hostname}:{settings.database_port}/{settings.database_name}"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 
