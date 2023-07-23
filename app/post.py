@@ -1,7 +1,7 @@
 from fastapi import Response, status, HTTPException, Depends, APIRouter
 from .schemas import PostCreate, Post
 from .database import engine, get_db
-from . import models
+from . import models, oauth2
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -13,14 +13,17 @@ router = APIRouter(
 
 # API to fetch all posts
 @router.get("/", response_model=List[Post])
-def get_posts(db: Session = Depends(get_db)):
+def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
   posts = db.query(models.Post).all()
+  print(f"logged in user {current_user.email}")
 
   return posts
 
 # title string, content string for post payload
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model= Post)
-def create_posts(post: PostCreate, db: Session = Depends(get_db)):
+def create_posts(post: PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
+
+  print(f"logged in user {current_user}")
   new_post = models.Post(**post.dict())
   db.add(new_post)
   db.commit()
@@ -30,7 +33,7 @@ def create_posts(post: PostCreate, db: Session = Depends(get_db)):
   return new_post
 
 @router.get("/{id}", response_model=Post)
-def get_post(id: int, db: Session = Depends(get_db)):
+def get_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
   post = db.query(models.Post).filter(models.Post.id == id).first()
 
   if post is None:
@@ -41,7 +44,7 @@ def get_post(id: int, db: Session = Depends(get_db)):
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int, db: Session = Depends(get_db)):
+def delete_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
   post_query = db.query(models.Post).filter(models.Post.id == id)
 
   if post_query.first() is None:
@@ -53,8 +56,9 @@ def delete_post(id: int, db: Session = Depends(get_db)):
 
   return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
 @router.put("/{id}", response_model=Post)
-def update_post(id: int, post: PostCreate, db: Session = Depends(get_db)):
+def update_post(id: int, post: PostCreate, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
   post_query = db.query(models.Post).filter(models.Post.id == id)
 
   if post_query.first() is None:
