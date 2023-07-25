@@ -1,9 +1,10 @@
 from fastapi import Response, status, HTTPException, Depends, APIRouter
-from .schemas import PostCreate, Post
+from .schemas import PostCreate, Post, PostOut
 from .database import engine, get_db
 from . import models, oauth2
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from sqlalchemy import func
 
 router = APIRouter(
   prefix="/posts",
@@ -13,13 +14,17 @@ router = APIRouter(
 
 # API to fetch all posts
 # filtering by query params
-@router.get("/", response_model=List[Post])
+@router.get("/", response_model=List[PostOut])
 def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user), limit: int = 10,
               skip: int = 0, search: Optional[str] = ""):
 
   # if no limit is provided it takes the default limit of 10
   # offset will skip the no of mentioned records from the top of db schema like skip = 3 skips first 3 records
-  posts = db.query(models.Post).filter(models.Post.title.contains(search)).limit(limit).offset(skip).all()
+  # join between Post and Vote by default a inner join, isouter=True to make this a left join
+  posts = db.query(models.Post, func.count(models.Vote.post_id).label("votes")).join(
+            models.Vote, models.Vote.post_id == models.Post.id, isouter=True).group_by(models.Post.id).filter(
+            models.Post.title.contains(search)).limit(limit).offset(skip).all()
+  
   print(f"logged in user {current_user.email} with query param limit: {limit}")
 
   return posts
@@ -37,15 +42,17 @@ def create_posts(post: PostCreate, db: Session = Depends(get_db), current_user: 
 
   return new_post
 
-@router.get("/{id}", response_model=Post)
+@router.get("/{id}", response_model=PostOut)
 def get_post(id: int, db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
-  post = db.query(models.Post).filter(models.Post.id == id).first()
+  post = db.query(models.Post, func.count(models.Vote.post_id).label("votes")).join(
+            models.Vote, models.Vote.post_id == models.Post.id, isouter=True).group_by(models.Post.id).filter(
+            models.Post.id == id).first()
 
   if post is None:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail=f"post with id: {id} was not found")
   
-  if post.user_id != current_user.id:
+  if post.Post.user_id != current_user.id:
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                         detail=f"Not authorized to perform requested action")
 
